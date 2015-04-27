@@ -5,23 +5,22 @@
  */
 package rmiprosjekt;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
+import java.sql.*;
 import java.sql.Connection;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.annotation.Resource;
-import javax.sql.DataSource;
-import java.sql.*;
 import javax.sql.*;
-import oracle.jdbc.driver.*;
-import oracle.jdbc.pool.*;
-import oracle.jdbc.xa.OracleXid;
-import oracle.jdbc.xa.OracleXAException;
-import oracle.jdbc.xa.client.*;
+import javax.sql.DataSource;
 import javax.transaction.xa.*;
+import org.apache.derby.jdbc.ClientXADataSource;
 
 /**
  *
@@ -31,6 +30,7 @@ class RegisterImpl extends UnicastRemoteObject implements Register {
 
     private ArrayList<Bank> banks = new ArrayList<>();
     private Database db;
+    private long txGenerator;
 
     public RegisterImpl() throws RemoteException {
         this.db = new Database();
@@ -39,54 +39,48 @@ class RegisterImpl extends UnicastRemoteObject implements Register {
     @Override
     public boolean transfer(double amount, Account toAccount, Account fromAccount) throws RemoteException {
         try {
-            DriverManager.getConnection("jdbc:derby://localhost:1527/bank1", "bank1", "bank1");
-            DriverManager.getConnection("jdbc:derby://localhost:1527/bank2", "bank2", "bank2");
-            // Opprett forbindelse
-            XAConnection forb1 = db.getDs1().getXAConnection();
-            XAConnection forb2 = db.getDs2().getXAConnection();
-            Connection conn1 = forb1.getConnection();
-            Connection conn2 = forb2.getConnection();
 
-            // Opprett resources
-            XAResource res1 = forb1.getXAResource();
-            XAResource res2 = forb2.getXAResource();
+            XAConnection c1 = db.dataSource1().getXAConnection("bank1", "bank1");
+            XAConnection c2 = db.dataSource2().getXAConnection("bank2", "bank2");
 
-            //Oppretter xid
+            Connection conn1 = c1.getConnection();
+            Connection conn2 = c2.getConnection();
+
+            XAResource res1 = c1.getXAResource();
+            XAResource res2 = c2.getXAResource();
+
             Xid xid1 = createXid(1);
             Xid xid2 = createXid(2);
 
-            // Starter resourcene
             res1.start(xid1, XAResource.TMNOFLAGS);
             res2.start(xid2, XAResource.TMNOFLAGS);
 
-            // Utfører sql
             trekk(conn1, fromAccount, amount);
-            leggTil(conn2, fromAccount, amount);
+            leggTil(conn2, toAccount, amount);
 
             res1.end(xid1, XAResource.TMSUCCESS);
             res2.end(xid2, XAResource.TMSUCCESS);
 
-            // Prepare the RMs
-            int prep1 = res1.prepare(xid1);
-            int prep2 = res2.prepare(xid2);
+            int prp1 = res1.prepare(xid1);
+            int prp2 = res2.prepare(xid2);
 
-            System.out.println("Returverdien til prepare: " + prep1); // Printer ut return value
-            System.out.println("Returverdien til prepare: " + prep2);
+            System.out.println("Return value of prepare 1 is " + prp1);
+            System.out.println("Return value of prepare 2 is " + prp2);
 
             boolean do_commit = true;
 
-            if (!((prep1 == XAResource.XA_OK) || (prep1 == XAResource.XA_RDONLY))) {
+            if (!((prp1 == XAResource.XA_OK) || (prp1 == XAResource.XA_RDONLY))) {
                 do_commit = false;
             }
 
-            if (!((prep2 == XAResource.XA_OK) || (prep2 == XAResource.XA_RDONLY))) {
+            if (!((prp2 == XAResource.XA_OK) || (prp2 == XAResource.XA_RDONLY))) {
                 do_commit = false;
             }
 
-            System.out.println("do_commit: " + do_commit);
-            System.out.println("Er resource 1 det samme som resource 2? " + res1.isSameRM(res2));
+            System.out.println("do_commit is " + do_commit);
+            System.out.println("Er resource 1 den samme som resource 2?" + res1.isSameRM(res2));
 
-            if (prep1 == XAResource.XA_OK) {
+            if (prp1 == XAResource.XA_OK) {
                 if (do_commit) {
                     res1.commit(xid1, false);
                 } else {
@@ -94,30 +88,33 @@ class RegisterImpl extends UnicastRemoteObject implements Register {
                 }
             }
 
-            if (prep2 == XAResource.XA_OK) {
+            if (prp2 == XAResource.XA_OK) {
                 if (do_commit) {
                     res2.commit(xid2, false);
                 } else {
                     res2.rollback(xid2);
                 }
             }
-            //Lukker forbindelsen
+
+            // Close connections
             conn1.close();
             conn1 = null;
             conn2.close();
             conn2 = null;
-            forb1.close();
-            forb1 = null;
-            forb2.close();
-            forb2 = null;
-        } catch (Exception ex) {
-            Logger.getLogger(RegisterImpl.class.getName()).log(Level.SEVERE, null, ex);
+
+            c1.close();
+            c1 = null;
+            c2.close();
+            c2 = null;
+
+        } catch (Exception e) {
+            System.out.println("FEIL I TRANSFER!!! " + e);
         }
         return true;
     }
 
-    //Metode hentet fra oracles nettsider for å lage XID
-    static Xid createXid(int bids) throws XAException {
+    static Xid createXid(int bids)
+            throws XAException {
         byte[] gid = new byte[1];
         gid[0] = (byte) 9;
         byte[] bid = new byte[1];
@@ -126,13 +123,25 @@ class RegisterImpl extends UnicastRemoteObject implements Register {
         byte[] bqual = new byte[64];
         System.arraycopy(gid, 0, gtrid, 0, 1);
         System.arraycopy(bid, 0, bqual, 0, 1);
-        Xid xid = new OracleXid(0x1234, gtrid, bqual);
-        return xid;
+        return new Xid() {
+            public int getFormatId() {
+                return 0x1234;
+            }
+
+            public byte[] getGlobalTransactionId() {
+                return gid;
+            }
+
+            public byte[] getBranchQualifier() {
+                return bqual;
+            }
+        };
     }
+                
 
     private static void trekk(Connection forb, Account fromAccount, double amount) throws SQLException {
         Statement stmt = forb.createStatement();
-        int cnt = stmt.executeUpdate("update balance where accountnumber =" + fromAccount.getAccountnumber() + " set balance =" + fromAccount.newBalanceSub(amount));
+        int cnt = stmt.executeUpdate("update accounts set balance =" + fromAccount.newBalanceSub(amount) + " where accountnumber =" + fromAccount.getAccountnumber());
         System.out.println("Ingen av radene påvirket " + cnt);
         stmt.close();
         stmt = null;
@@ -140,7 +149,7 @@ class RegisterImpl extends UnicastRemoteObject implements Register {
 
     private static void leggTil(Connection forb, Account toAccount, double amount) throws SQLException {
         Statement stmt = forb.createStatement();
-        int cnt = stmt.executeUpdate("update balance where accountnumber =" + toAccount.getAccountnumber() + " set balance = " + toAccount.newBalanceAdd(amount));
+        int cnt = stmt.executeUpdate("update accounts set balance = " + toAccount.newBalanceAdd(amount) + " where accountnumber =" + toAccount.getAccountnumber());
         System.out.println("Ingen av radene påvirket " + cnt);
         stmt.close();
         stmt = null;

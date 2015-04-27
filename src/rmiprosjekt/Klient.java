@@ -16,6 +16,7 @@ public class Klient {
         while (lbInn != null) {
             double lb = Double.parseDouble(lbInn);
             register.transfer(lb, konto1, konto2);
+            lbInn = showInputDialog("Overfør penger");
         }
     }
 }
