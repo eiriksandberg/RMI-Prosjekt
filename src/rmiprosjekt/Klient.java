@@ -10,13 +10,12 @@ public class Klient {
 // må IP-adressen eller
 // maskinnavnet settes inn i stedet for localhost på neste linje.
         Register register = (Register) Naming.lookup("rmi://localhost:2020/register");
-        String lbInn = showInputDialog("Endre lagerbeholdning");
+        Account konto1 = new Account(1, "Harald", "Eriksen", 100000);
+        Account konto2 = new Account(1, "Sigurd", "Hansen", 80000);
+        String lbInn = showInputDialog("Overfør penger");
         while (lbInn != null) {
-            int lb = Integer.parseInt(lbInn);
-            register.endreLagerbeholdning(0, lb);
-            System.out.println(register.lagDatabeskrivelse());
-            lbInn = showInputDialog("Endre lagerbeholdning");
+            double lb = Double.parseDouble(lbInn);
+            register.transfer(lb, konto1, konto2);
         }
-        System.out.println(register.lagBestillingsliste());
     }
 }
