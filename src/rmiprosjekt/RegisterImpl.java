@@ -67,8 +67,10 @@ class RegisterImpl extends UnicastRemoteObject implements Register {
             //Entrer preparephase
             int prp1 = res1.prepare(xid1);
             int prp2 = res2.prepare(xid2);
-            System.out.println("Return value of prepare 1 is " + prp1);
-            System.out.println("Return value of prepare 2 is " + prp2);
+            write(("Return value of prepare 1 is " + prp1));
+            write(("Return value of prepare 2 is " + prp2));
+            
+            
             boolean do_commit = true;
             if (!((prp1 == XAResource.XA_OK) || (prp1 == XAResource.XA_RDONLY))) {
                 do_commit = false;
@@ -76,8 +78,10 @@ class RegisterImpl extends UnicastRemoteObject implements Register {
             if (!((prp2 == XAResource.XA_OK) || (prp2 == XAResource.XA_RDONLY))) {
                 do_commit = false;
             }
-            System.out.println("do_commit is " + do_commit);
-            System.out.println("Er resource 1 den samme som resource 2?" + res1.isSameRM(res2));
+            
+            write(("do_commit is " + do_commit));
+            write(("Er resource 1 den samme som resource 2?" + res1.isSameRM(res2)));
+
             if (prp1 == XAResource.XA_OK) {
                 if (do_commit) {
                     res1.commit(xid1, false);
@@ -102,7 +106,6 @@ class RegisterImpl extends UnicastRemoteObject implements Register {
             c2.close();
             c2 = null;
         } catch (Exception e) {
-            //System.out.println("FEIL I TRANSFER!!! " + e);
             write(("FEIL I TRANSFER!!! " + e));
         }
         return true;
