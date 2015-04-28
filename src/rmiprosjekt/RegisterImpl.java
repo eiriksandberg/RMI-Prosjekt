@@ -161,4 +161,32 @@ class RegisterImpl extends UnicastRemoteObject implements Register {
             e.printStackTrace();
         }
     }
+     
+     public ArrayList<Account> getAccounts(String name) throws Exception{
+         name = name.toLowerCase();
+         XAConnection c = null;
+         if(name == "bank1"){
+            c = db.getDs1().getXAConnection("bank1", "bank1");
+         }
+         if(name == "bank2"){
+             c = db.getDs2().getXAConnection("bank2", "bank2");
+         }
+         if(c != null){
+         Connection conn1 = c.getConnection();
+         Statement stmt = conn1.createStatement();
+         stmt.execute("select * from accounts");
+         ResultSet res = stmt.getResultSet();
+         ArrayList <Account> a = new ArrayList<>();
+         while(res.next()){
+             String fname = res.getString("fname");
+             String lname = res.getString("lname");
+             int an = res.getInt("accountnumber");
+             double balance = res.getDouble("balance");
+             a.add(new Account(an, fname, lname, balance));
+         }
+         stmt.close();
+         return a;
+         }
+         return null;
+     }
 }

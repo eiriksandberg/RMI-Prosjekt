@@ -8,6 +8,7 @@ package rmiprosjekt;
 
 import java.rmi.Remote;
 import java.rmi.RemoteException;
+import java.util.ArrayList;
 
 /**
  *
@@ -15,4 +16,5 @@ import java.rmi.RemoteException;
  */
 public interface Register extends Remote{
     public boolean transfer(double amount, Account toAccount, Account fromAccount) throws RemoteException;
+    public ArrayList<Account> getAccounts(String name) throws Exception;
 }
