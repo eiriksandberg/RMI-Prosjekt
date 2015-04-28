@@ -5,22 +5,14 @@
  */
 package rmiprosjekt;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 import java.sql.*;
 import java.sql.Connection;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import javax.annotation.Resource;
 import javax.sql.*;
-import javax.sql.DataSource;
 import javax.transaction.xa.*;
-import org.apache.derby.jdbc.ClientXADataSource;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
