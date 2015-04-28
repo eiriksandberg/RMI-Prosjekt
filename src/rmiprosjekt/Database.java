@@ -63,5 +63,4 @@ class Database {
     public void setDs2(XADataSource ds2) throws Exception {
         this.ds2 = ds2;
     }
-
 }
