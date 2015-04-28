@@ -43,47 +43,41 @@ class RegisterImpl extends UnicastRemoteObject implements Register {
     @Override
     public boolean transfer(double amount, Account toAccount, Account fromAccount) throws RemoteException {
         try {
-
+            // Prøver å etablere fysiske forbindelser til ressursene
             XAConnection c1 = db.dataSource1().getXAConnection("bank1", "bank1");
             XAConnection c2 = db.dataSource2().getXAConnection("bank2", "bank2");
-
+            // De faktiske forbindelsene 
             Connection conn1 = c1.getConnection();
             Connection conn2 = c2.getConnection();
-
+            // Ressursene som er involvert
             XAResource res1 = c1.getXAResource();
             XAResource res2 = c2.getXAResource();
-
+            // Lager xid
             Xid xid1 = createXid(1);
             Xid xid2 = createXid(2);
-
+            //Starter ressursene
             res1.start(xid1, XAResource.TMNOFLAGS);
             res2.start(xid2, XAResource.TMNOFLAGS);
-
+            // Utfører sql setningene lokalt
             trekk(conn1, fromAccount, amount);
             leggTil(conn2, toAccount, amount);
-
+            // Avslutter ressursene
             res1.end(xid1, XAResource.TMSUCCESS);
             res2.end(xid2, XAResource.TMSUCCESS);
-
+            //Entrer preparephase
             int prp1 = res1.prepare(xid1);
             int prp2 = res2.prepare(xid2);
-
             System.out.println("Return value of prepare 1 is " + prp1);
             System.out.println("Return value of prepare 2 is " + prp2);
-
             boolean do_commit = true;
-
             if (!((prp1 == XAResource.XA_OK) || (prp1 == XAResource.XA_RDONLY))) {
                 do_commit = false;
             }
-
             if (!((prp2 == XAResource.XA_OK) || (prp2 == XAResource.XA_RDONLY))) {
                 do_commit = false;
             }
-
             System.out.println("do_commit is " + do_commit);
             System.out.println("Er resource 1 den samme som resource 2?" + res1.isSameRM(res2));
-
             if (prp1 == XAResource.XA_OK) {
                 if (do_commit) {
                     res1.commit(xid1, false);
@@ -91,7 +85,6 @@ class RegisterImpl extends UnicastRemoteObject implements Register {
                     res1.rollback(xid1);
                 }
             }
-
             if (prp2 == XAResource.XA_OK) {
                 if (do_commit) {
                     res2.commit(xid2, false);
@@ -99,18 +92,15 @@ class RegisterImpl extends UnicastRemoteObject implements Register {
                     res2.rollback(xid2);
                 }
             }
-
-            // Close connections
+            // Stenger forbindelsen
             conn1.close();
             conn1 = null;
             conn2.close();
             conn2 = null;
-
             c1.close();
             c1 = null;
             c2.close();
             c2 = null;
-
         } catch (Exception e) {
             //System.out.println("FEIL I TRANSFER!!! " + e);
             write(("FEIL I TRANSFER!!! " + e));
@@ -132,11 +122,9 @@ class RegisterImpl extends UnicastRemoteObject implements Register {
             public int getFormatId() {
                 return 0x1234;
             }
-
             public byte[] getGlobalTransactionId() {
                 return gid;
             }
-
             public byte[] getBranchQualifier() {
                 return bqual;
             }
@@ -165,12 +153,10 @@ class RegisterImpl extends UnicastRemoteObject implements Register {
         try {
             System.out.println(txt);
             File file = new File("src/rmiprosjekt/log.txt");
-
             FileWriter fw = new FileWriter(file.getAbsoluteFile());
             BufferedWriter bw = new BufferedWriter(fw);
             bw.write(txt);
             bw.close();
-
         } catch (IOException e) {
             e.printStackTrace();
         }
